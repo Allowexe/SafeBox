@@ -35,7 +35,6 @@ safebox/
 ├── Makefile                 # Compilation & exécution
 ├── README.md                # Présentation du projet
 ├── start_safebox.erl        # Démarrage centralisé du client CLI
-└── test/                    # (optionnel) tests automatisés
 ```
 
 ---
