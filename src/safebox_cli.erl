@@ -5,29 +5,50 @@
 
 start(IPStr) ->
     io:format("SafeBox TCP Client démarré. Connexion à ~s:~p~n", [IPStr, ?PORT]),
-    loop(IPStr).
+    loop(IPStr, undefined).
 
-loop(IPStr) ->
+loop(IPStr, Login) ->
     io:format("> "),
     case io:get_line("") of
         eof -> ok;
         Line ->
             Input = string:tokens(string:trim(Line), " "),
-            handle_command(Input, IPStr),
-            loop(IPStr)
+            {NewLogin, _} = handle_command(Input, IPStr, Login),
+            loop(IPStr, NewLogin)
     end.
 
-handle_command(["add", KeyStr], IP) ->
-    Key = string:trim(KeyStr),
+handle_command(["register", LoginStr], IP, Login) ->
+    io:format("Saisir mot de passe : "),
+    Password = string:trim(io:get_line("")),
+    Response = send_tcp(IP, ["register", LoginStr], Password),
+    {Login, Response};
+
+handle_command(["login", LoginStr], IP, _) ->
+    io:format("Mot de passe : "),
+    Password = string:trim(io:get_line("")),
+    Response = send_tcp(IP, ["login", LoginStr], Password),
+    case string:prefix(Response, "OK: ") of
+        true -> {list_to_binary(LoginStr), Response};
+        false -> {undefined, Response}
+    end;
+
+handle_command(["add", _KeyStr], _IP, undefined) ->
+    io:format("Veuillez d'abord vous connecter avec login <utilisateur>.~n"),
+    {undefined, "NOT_LOGGED_IN"};
+
+handle_command(["add", KeyStr], IP, Login) ->
     io:format("Saisir le secret : "),
     SecretInput = string:trim(io:get_line("")),
     Encrypted = safebox_crypto:encrypt(list_to_binary(SecretInput)),
-    send_tcp(IP, ["store", Key, binary_to_list(Encrypted)]),
-    io:format("Secret chiffré et enregistré.~n");
+    Response = send_tcp(IP, ["store", KeyStr, binary_to_list(Encrypted)]),
+    {Login, Response};
 
-handle_command(["get", KeyStr], IP) ->
-    Key = string:trim(KeyStr),
-    Response = send_tcp(IP, ["get", Key]),
+handle_command(["get", _KeyStr], _IP, undefined) ->
+    io:format("Veuillez d'abord vous connecter avec login <utilisateur>.~n"),
+    {undefined, "NOT_LOGGED_IN"};
+
+handle_command(["get", KeyStr], IP, Login) ->
+    Response = send_tcp(IP, ["get", KeyStr]),
     case string:substr(Response, 1, 4) of
         "OK: " ->
             EncBase64 = string:trim(string:substr(Response, 5)),
@@ -38,29 +59,46 @@ handle_command(["get", KeyStr], IP) ->
             end;
         _ ->
             io:format("Clé inconnue ou réponse invalide.~n")
-    end;
+    end,
+    {Login, Response};
 
-handle_command(["del", KeyStr], IP) ->
-    Key = string:trim(KeyStr),
-    send_tcp(IP, ["del", Key]),
-    io:format("Clé supprimée (ou tentative).~n");
+handle_command(["del", _KeyStr], _IP, undefined) ->
+    io:format("Veuillez d'abord vous connecter avec login <utilisateur>.~n"),
+    {undefined, "NOT_LOGGED_IN"};
 
-handle_command(["quit"], _) ->
+handle_command(["del", KeyStr], IP, Login) ->
+    Response = send_tcp(IP, ["del", KeyStr]),
+    io:format("~s~n", [Response]),
+    {Login, Response};
+
+handle_command(["quit"], _, _) ->
     io:format("Fermeture de SafeBox.~n"),
     halt();
 
-handle_command(_, _) ->
-    io:format("Commande inconnue.~n").
+handle_command(_, _, Login) ->
+    io:format("Commande inconnue.~n"),
+    {Login, "ERR"}.
 
 send_tcp(IPStr, Parts) ->
+    send_tcp(IPStr, Parts, undefined).
+
+send_tcp(IPStr, Parts, undefined) ->
     {ok, Socket} = gen_tcp:connect(parse_ip(IPStr), ?PORT, [binary, {packet, line}, {active, false}]),
     Command = string:join(Parts, " "),
     gen_tcp:send(Socket, list_to_binary(Command ++ "\n")),
     case gen_tcp:recv(Socket, 0) of
-        {ok, Line} ->
-            binary_to_list(Line);
-        {error, closed} ->
-            "ERR"
+        {ok, Line} -> binary_to_list(Line);
+        {error, closed} -> "ERR"
+    end;
+
+send_tcp(IPStr, Parts, Password) ->
+    {ok, Socket} = gen_tcp:connect(parse_ip(IPStr), ?PORT, [binary, {packet, line}, {active, false}]),
+    Command = string:join(Parts, " "),
+    gen_tcp:send(Socket, list_to_binary(Command ++ "\n")),
+    gen_tcp:send(Socket, list_to_binary(Password ++ "\n")),
+    case gen_tcp:recv(Socket, 0) of
+        {ok, Line} -> binary_to_list(Line);
+        {error, closed} -> "ERR"
     end.
 
 parse_ip(Str) ->
