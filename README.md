@@ -1,124 +1,128 @@
+# SafeBox – Projet Erlang TCP (Client/Serveur)
 
-#  SafeBox – Projet Erlang Distribué (ISEN3)
-
-**SafeBox** est une application distribuée écrite en Erlang, permettant à un utilisateur de stocker, récupérer et supprimer des secrets (textes) de manière sécurisée, redondante, et sans persistance. Elle est conçue pour démontrer les capacités d’Erlang en matière de programmation fonctionnelle, concurrente et distribuée.
-
----
-
-##  Objectifs pédagogiques
-
-- Mettre en œuvre un système client/serveur distribué avec plusieurs nœuds Erlang
-- Appliquer la tolérance aux pannes via un mécanisme de quorum
-- Utiliser ETS pour le stockage en mémoire
-- Développer une interface CLI interactive
-- Respecter la logique Agile : sprints, modularité, testabilité
+**SafeBox** est une application client/serveur écrite en Erlang, permettant à un utilisateur de stocker, récupérer et supprimer des secrets (textes) de manière sécurisée via une connexion TCP. Chaque secret est chiffré côté client et stocké en mémoire côté serveur.
 
 ---
 
-##  Technologies utilisées
+## Objectifs pédagogiques
 
-- Langage : **Erlang**
-- Stockage local : **ETS (in-memory)**
-- Communication : **RPC inter-nœuds** avec `rpc:call/4`
-- Chiffrement : **Base64** pédagogique
-- Interface : **Ligne de commande** (`io:get_line/1`)
-- Nœuds : **3 nœuds minimum** (nommés `node1`, `node2`, `node3`)
+- Implémenter un vrai modèle client/serveur avec `gen_tcp`
+- Gérer des connexions TCP simultanées avec `spawn`
+- Stocker les données en mémoire avec `ETS`
+- Appliquer une logique modulaire
+- Comprendre les échanges binaires sur socket
 
 ---
 
-##  Structure du projet
+## Technologies utilisées
+
+- **Erlang** (OTP 25+ recommandé)
+- **TCP/IP** via `gen_tcp`
+- **Chiffrement** Base64 pédagogique (via `safebox_crypto`)
+- **ETS** pour le stockage temporaire
+- **Client CLI** interactif
+
+---
+
+## Structure du projet
 
 ```
 safebox/
-├── src/                     # Modules source (.erl)
-├── ebin/                    # Fichiers compilés (.beam)
-├── Makefile                 # Compilation & exécution
-├── README.md                # Présentation du projet
-├── start_safebox.erl        # Démarrage centralisé du client CLI
+├── src/
+│   ├── safebox_server.erl       # Serveur TCP (écoute sur 0.0.0.0:5000)
+│   ├── safebox_cli.erl          # Client CLI TCP
+│   ├── safebox_crypto.erl       # Module de chiffrement (Base64)
+│   └── start_safebox.erl        # Lance le client
+├── ebin/                        # Fichiers .beam compilés
+├── Makefile                     # Compilation
+└── README.md                    # Ce fichier
 ```
 
 ---
 
-##  Lancer le projet (manuel)
+## Compilation
 
-### 1. Compiler
 ```bash
 make
 ```
 
-### 2. Ouvrir 3 terminaux pour les nœuds
+---
 
-#### Terminal 1 :
+## Lancement
+
+### 📦 Côté Serveur (machine distante)
+
 ```bash
-erl -pa ebin -sname node1 -setcookie safebox -eval "safebox_node:start(), timer:sleep(infinity)."
+erl -pa ebin -sname server -setcookie safebox
 ```
 
-#### Terminal 2 :
-```bash
-erl -pa ebin -sname node2 -setcookie safebox -eval "safebox_node:start(), timer:sleep(infinity)."
+Dans l’interpréteur :
+
+```erlang
+c(safebox_server).
+safebox_server:start().
 ```
 
-#### Terminal 3 :
-```bash
-erl -pa ebin -sname node3 -setcookie safebox -eval "safebox_node:start(), timer:sleep(infinity)."
-```
+Le serveur écoute sur le port `5000` et toutes les IPs (`0.0.0.0`)
 
-### 3. Lancer le client dans un 4ᵉ terminal
+### 🧑Côté Client (depuis une autre machine)
+
 ```bash
 erl -pa ebin -sname client -setcookie safebox
 ```
 
+Puis :
+
 ```erlang
-net_adm:ping('node1@localhost').
-net_adm:ping('node2@localhost').
-net_adm:ping('node3@localhost').
-
-c(start_safebox),
-start_safebox:start().
+c(safebox_cli).
+safebox_cli:start("IP_DU_SERVEUR").
 ```
 
 ---
 
-##  Commandes disponibles (CLI SafeBox)
+## Commandes disponibles (en ligne de commande)
 
 ```
-> nodes [liste]       # ex: nodes node1@localhost node2@localhost node3@localhost
-> add wifi            # ajoute un secret chiffré
-> get wifi            # récupère un secret
-> del wifi            # supprime un secret
-> quit                # quitter le programme
+> add wifi            # Saisit un secret, le chiffre, l’envoie au serveur
+> get wifi            # Récupère le secret et le déchiffre
+> del wifi            # Supprime le secret côté serveur
+> quit                # Quitte le client
 ```
 
 ---
 
-##  Fonctionnement technique
+## Chiffrement
 
-- `safebox_node.erl` : gère le stockage local via ETS
-- `safebox_net.erl` : distribue les appels, applique le quorum 2/3
-- `safebox_crypto.erl` : encode/décode les secrets en Base64
-- `safebox_cli.erl` : interprète les commandes utilisateur
-- `start_safebox.erl` : init du client + CLI
+- Le chiffrement est actuellement fait en Base64 côté client.
+- Le serveur ne connaît pas le contenu original.
+- L’algorithme est modulaire (via `safebox_crypto.erl`) → peut être remplacé par AES.
 
 ---
 
-##  Comportement attendu
+## Sécurité & Limites
 
-| Scénario                                 | Résultat attendu                     |
-|------------------------------------------|--------------------------------------|
-| Ajout d’un secret                        | Secret chiffré, distribué sur 3 nœuds|
-| Lecture avec 3 ou 2 nœuds actifs         |   Succès : grâce au quorum           |
-| Lecture avec 1 seul nœud actif           |   Échec : quorum insuffisant         |
-| Suppression d’un secret                  | Suppression répartie                 |
-| Redémarrage complet                      | Les données sont perdues (volatilité)|
+- Le chiffrement Base64 est **pédagogique uniquement** (non sécurisé).
+- Le serveur **ne persiste pas les données** (ETS = mémoire).
+- La communication n’est **pas chiffrée** sur le réseau (pas de TLS).
 
 ---
 
-##  Membres du groupe
+## Idées d’évolution
 
-- Valentin
-- Clément
-- Lucas
-- JB
+- Remplacer Base64 par AES (avec `crypto:block_encrypt`)
+- Ajouter une authentification simple (login/mot de passe)
+- Support multi-utilisateur
+- Interface Web via Cowboy
+- Persistance disque (ex: Mnesia ou fichier)
+
+---
+
+## 👥 Auteurs
+
+- Valentin  
+- Clément  
+- Lucas  
+- JB  
 - Paul
 
 ---
