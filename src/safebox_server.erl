@@ -1,15 +1,15 @@
 -module(safebox_server).
--export([start/1, accept/1]).
+-export([start/0, accept/1]).
 
 -define(TABLE, safebox_storage).
 -define(PORT, 5000).
 
-start(IPStr) ->
+start() ->
     {ok, ListenSock} = gen_tcp:listen(?PORT, [
         binary, {packet, line}, {active, false}, {reuseaddr, true},
-        {ip, parse_ip(IPStr)}
+        {ip, {0,0,0,0}}
     ]),
-    io:format("SafeBox TCP Server en écoute sur ~s:~p~n", [IPStr, ?PORT]),
+    io:format("SafeBox TCP Server en écoute sur 0.0.0.0:~p~n", [?PORT]),
     init_storage(),
     accept(ListenSock).
 
@@ -51,7 +51,3 @@ init_storage() ->
         undefined -> ets:new(?TABLE, [named_table, public, set]);
         _ -> ok
     end.
-
-parse_ip(Str) ->
-    [A,B,C,D] = [list_to_integer(S) || S <- string:tokens(Str, ".")],
-    {A,B,C,D}.
