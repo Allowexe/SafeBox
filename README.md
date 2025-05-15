@@ -114,7 +114,6 @@ safebox_cli:start("IP_DU_SERVEUR").
 - Liste des clés (`list`)
 - Interface Web avec Cowboy
 - Export/sauvegarde Mnesia
-- Session persistante avec gestion de tokens
 
 ---
 
