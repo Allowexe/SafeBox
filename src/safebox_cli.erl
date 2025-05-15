@@ -1,63 +1,70 @@
-
 -module(safebox_cli).
--export([start/0]).
+-export([start/1]).
 
-start() ->
-    io:format("Bienvenue dans SafeBox~nCommandes : add <clé>, get <clé>, del <clé>, nodes [liste], quit~n"),
-    loop().
+-define(PORT, 5000).
 
-loop() ->
+start(IPStr) ->
+    io:format("SafeBox TCP Client démarré. Connexion à ~s:~p~n", [IPStr, ?PORT]),
+    loop(IPStr).
+
+loop(IPStr) ->
     io:format("> "),
     case io:get_line("") of
         eof -> ok;
         Line ->
             Input = string:tokens(string:trim(Line), " "),
-            handle_command(Input),
-            loop()
+            handle_command(Input, IPStr),
+            loop(IPStr)
     end.
 
-handle_command(["add", KeyStr]) ->
-    Key = list_to_binary(KeyStr),
+handle_command(["add", KeyStr], IP) ->
+    Key = string:trim(KeyStr),
     io:format("Saisir le secret : "),
     SecretInput = string:trim(io:get_line("")),
-    Secret = list_to_binary(SecretInput),
-    Encrypted = safebox_crypto:encrypt(Secret),
-    safebox_net:store_distributed(Key, Encrypted),
-    io:format("Secret enregistré.~n");
+    Secret = safebox_crypto:encrypt(list_to_binary(SecretInput)),
+    send_tcp(IP, ["store", Key, binary_to_list(Secret)]);
 
-handle_command(["get", KeyStr]) ->
-    Key = list_to_binary(KeyStr),
-    case safebox_net:get_distributed(Key) of
-        {ok, Encrypted} ->
-            case safebox_crypto:decrypt(Encrypted) of
-                {ok, Decrypted} ->
-                    io:format("Le secret est : ~s~n", [binary_to_list(Decrypted)]);
-                {error, invalid_base64} ->
-                    io:format("Erreur de déchiffrement.~n")
+handle_command(["get", KeyStr], IP) ->
+    Key = string:trim(KeyStr),
+    Response = send_tcp(IP, ["get", Key]),
+    case string:substr(Response, 1, 4) of
+        "OK: " ->
+            EncText = string:trim(string:substr(Response, 5)),
+            EncBin = list_to_binary(EncText),
+            case safebox_crypto:decrypt(EncBin) of
+                {ok, Plain} -> io:format("Le secret est : ~s~n", [binary_to_list(Plain)]);
+                _ -> io:format("Erreur de déchiffrement.~n")
             end;
-        {error, quorum_failed} ->
-            io:format("Échec : quorum insuffisant.~n");
         _ ->
-            io:format("Clé inconnue.~n")
+            io:format("Réponse inattendue: ~s~n", [Response])
     end;
 
-handle_command(["del", KeyStr]) ->
-    Key = list_to_binary(KeyStr),
-    safebox_net:delete_distributed(Key),
-    io:format("Secret supprimé (ou tentative).~n");
 
-handle_command(["nodes"]) ->
-    Nodes = safebox_net:get_nodes(),
-    io:format("Nœuds enregistrés : ~p~n", [Nodes]);
+handle_command(["del", KeyStr], IP) ->
+    Key = string:trim(KeyStr),
+    send_tcp(IP, ["del", Key]);
 
-handle_command(["nodes" | Rest]) ->
-    NodeList = [list_to_atom(N) || N <- Rest],
-    safebox_net:set_nodes(NodeList),
-    io:format("Nœuds mis à jour : ~p~n", [NodeList]);
-
-handle_command(["quit"]) ->
+handle_command(["quit"], _) ->
     io:format("Fermeture de SafeBox.~n"),
     halt();
 
-handle_command(_) ->
+handle_command(_, _) ->
     io:format("Commande inconnue.~n").
+
+send_tcp(IPStr, Parts) ->
+    {ok, Socket} = gen_tcp:connect(parse_ip(IPStr), ?PORT, [binary, {packet, line}, {active, false}]),
+    Command = string:join(Parts, " "),
+    gen_tcp:send(Socket, list_to_binary(Command ++ "\n")),
+    case gen_tcp:recv(Socket, 0) of
+        {ok, Line} ->
+            Response = binary_to_list(Line),
+            io:format("~s~n", [Response]),
+            Response;
+        {error, closed} ->
+            io:format("Connexion fermée.~n"),
+            "ERR"
+    end.
+
+parse_ip(Str) ->
+    [A,B,C,D] = [list_to_integer(S) || S <- string:tokens(Str, ".")],
+    {A,B,C,D}.
