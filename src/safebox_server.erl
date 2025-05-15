@@ -1,16 +1,18 @@
 -module(safebox_server).
 -export([start/0, accept/1]).
 
--define(TABLE, safebox_storage).
+-record(secret, {key, value}).
+
+-define(TABLE, secret).
 -define(PORT, 5000).
 
 start() ->
+    setup_mnesia(),
     {ok, ListenSock} = gen_tcp:listen(?PORT, [
         binary, {packet, line}, {active, false}, {reuseaddr, true},
         {ip, {0,0,0,0}}
     ]),
-    io:format("SafeBox TCP Server en écoute sur 0.0.0.0:~p~n", [?PORT]),
-    init_storage(),
+    io:format("SafeBox TCP Server avec Mnesia en écoute sur 0.0.0.0:~p~n", [?PORT]),
     accept(ListenSock).
 
 accept(ListenSock) ->
@@ -30,24 +32,47 @@ handle_client(Socket) ->
     end.
 
 handle_command(["store", Key, EncVal]) ->
-    ets:insert(?TABLE, {list_to_binary(Key), list_to_binary(EncVal)}),
-    "OK: stored";
+    Fun = fun() ->
+        mnesia:write(#secret{key = list_to_binary(Key), value = list_to_binary(EncVal)})
+    end,
+    case mnesia:transaction(Fun) of
+        {atomic, _} -> "OK: stored";
+        {aborted, Reason} -> "ERR: " ++ io_lib:format("~p", [Reason])
+    end;
 
 handle_command(["get", Key]) ->
-    case ets:lookup(?TABLE, list_to_binary(Key)) of
-        [{_, Val}] -> "OK: " ++ binary_to_list(Val);
-        [] -> "ERR: not_found"
+    Fun = fun() ->
+        case mnesia:read({?TABLE, list_to_binary(Key)}) of
+            [#secret{value = Val}] -> "OK: " ++ binary_to_list(Val);
+            [] -> "ERR: not_found"
+        end
+    end,
+    case mnesia:transaction(Fun) of
+        {atomic, Resp} -> Resp;
+        _ -> "ERR: mnesia_failure"
     end;
 
 handle_command(["del", Key]) ->
-    ets:delete(?TABLE, list_to_binary(Key)),
-    "OK: deleted";
+    Fun = fun() ->
+        mnesia:delete({?TABLE, list_to_binary(Key)})
+    end,
+    case mnesia:transaction(Fun) of
+        {atomic, _} -> "OK: deleted";
+        _ -> "ERR: delete_failed"
+    end;
 
 handle_command(_) ->
     "ERR: invalid_command".
 
-init_storage() ->
-    case ets:info(?TABLE) of
-        undefined -> ets:new(?TABLE, [named_table, public, set]);
+setup_mnesia() ->
+    mnesia:create_schema([node()]),
+    mnesia:start(),
+    case mnesia:table_info(?TABLE, attributes) of
+        undefined ->
+            mnesia:create_table(?TABLE, [
+                {attributes, record_info(fields, secret)},
+                {disc_copies, [node()]},
+                {type, set}
+            ]);
         _ -> ok
     end.
