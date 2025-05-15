@@ -67,12 +67,12 @@ handle_command(_) ->
 setup_mnesia() ->
     mnesia:create_schema([node()]),
     mnesia:start(),
-    case mnesia:table_info(?TABLE, attributes) of
-        undefined ->
+    case lists:member(?TABLE, mnesia:system_info(tables)) of
+        false ->
             mnesia:create_table(?TABLE, [
                 {attributes, record_info(fields, secret)},
                 {disc_copies, [node()]},
                 {type, set}
             ]);
-        _ -> ok
+        true -> ok
     end.
