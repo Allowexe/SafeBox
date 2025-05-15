@@ -31,8 +31,7 @@ safebox/
 ├── src/
 │   ├── safebox_server.erl       # Serveur TCP (écoute sur 0.0.0.0:5000)
 │   ├── safebox_cli.erl          # Client CLI TCP
-│   ├── safebox_crypto.erl       # Module de chiffrement (Base64)
-│   └── start_safebox.erl        # Lance le client
+│   └── safebox_crypto.erl       # Module de chiffrement (Base64)
 ├── ebin/                        # Fichiers .beam compilés
 ├── Makefile                     # Compilation
 └── README.md                    # Ce fichier
@@ -50,7 +49,7 @@ make
 
 ## Lancement
 
-### 📦 Côté Serveur (machine distante)
+### Côté Serveur (machine distante)
 
 ```bash
 erl -pa ebin -sname server -setcookie safebox
@@ -65,7 +64,7 @@ safebox_server:start().
 
 Le serveur écoute sur le port `5000` et toutes les IPs (`0.0.0.0`)
 
-### 🧑Côté Client (depuis une autre machine)
+### Côté Client (depuis une autre machine)
 
 ```bash
 erl -pa ebin -sname client -setcookie safebox
@@ -117,12 +116,12 @@ safebox_cli:start("IP_DU_SERVEUR").
 
 ---
 
-## 👥 Auteurs
+## Auteurs
 
-- Valentin  
-- Clément  
-- Lucas  
-- JB  
-- Paul
+- Clément Veith
+- Valentin Scias
+- Lucas Ribeiro
+- Jean-Baptiste Mattei
+- Paul François
 
 ---

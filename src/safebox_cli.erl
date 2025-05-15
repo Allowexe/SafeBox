@@ -21,28 +21,29 @@ handle_command(["add", KeyStr], IP) ->
     Key = string:trim(KeyStr),
     io:format("Saisir le secret : "),
     SecretInput = string:trim(io:get_line("")),
-    Secret = safebox_crypto:encrypt(list_to_binary(SecretInput)),
-    send_tcp(IP, ["store", Key, binary_to_list(Secret)]);
+    Encrypted = safebox_crypto:encrypt(list_to_binary(SecretInput)),
+    send_tcp(IP, ["store", Key, binary_to_list(Encrypted)]),
+    io:format("Secret chiffré et enregistré.~n");
 
 handle_command(["get", KeyStr], IP) ->
     Key = string:trim(KeyStr),
     Response = send_tcp(IP, ["get", Key]),
     case string:substr(Response, 1, 4) of
         "OK: " ->
-            EncText = string:trim(string:substr(Response, 5)),
-            EncBin = list_to_binary(EncText),
-            case safebox_crypto:decrypt(EncBin) of
-                {ok, Plain} -> io:format("Le secret est : ~s~n", [binary_to_list(Plain)]);
-                _ -> io:format("Erreur de déchiffrement.~n")
+            EncBase64 = string:trim(string:substr(Response, 5)),
+            Decoded = safebox_crypto:decrypt(list_to_binary(EncBase64)),
+            case Decoded of
+                {ok, PlainBin} -> io:format("Le secret est : ~s~n", [binary_to_list(PlainBin)]);
+                {error, _} -> io:format("Erreur de déchiffrement.~n")
             end;
         _ ->
-            io:format("Réponse inattendue: ~s~n", [Response])
+            io:format("Clé inconnue ou réponse invalide.~n")
     end;
-
 
 handle_command(["del", KeyStr], IP) ->
     Key = string:trim(KeyStr),
-    send_tcp(IP, ["del", Key]);
+    send_tcp(IP, ["del", Key]),
+    io:format("Clé supprimée (ou tentative).~n");
 
 handle_command(["quit"], _) ->
     io:format("Fermeture de SafeBox.~n"),
@@ -57,11 +58,8 @@ send_tcp(IPStr, Parts) ->
     gen_tcp:send(Socket, list_to_binary(Command ++ "\n")),
     case gen_tcp:recv(Socket, 0) of
         {ok, Line} ->
-            Response = binary_to_list(Line),
-            io:format("~s~n", [Response]),
-            Response;
+            binary_to_list(Line);
         {error, closed} ->
-            io:format("Connexion fermée.~n"),
             "ERR"
     end.
 
