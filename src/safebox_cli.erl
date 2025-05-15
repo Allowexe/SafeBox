@@ -21,15 +21,20 @@ handle_command(["register", LoginStr], IP, Login) ->
     io:format("Saisir mot de passe : "),
     Password = string:trim(io:get_line("")),
     Response = send_tcp(IP, ["register", LoginStr], Password),
+    io:format("~s~n", [Response]),
     {Login, Response};
 
 handle_command(["login", LoginStr], IP, _) ->
     io:format("Mot de passe : "),
     Password = string:trim(io:get_line("")),
-    Response = send_tcp(IP, ["login", LoginStr], Password),
-    case string:prefix(Response, "OK: ") of
-        true -> {list_to_binary(LoginStr), Response};
-        false -> {undefined, Response}
+    Response = string:trim(send_tcp(IP, ["login", LoginStr], Password)),
+    case string:substr(Response, 1, 4) of
+        "OK: " ->
+            io:format("Connecté en tant que ~s~n", [LoginStr]),
+            {LoginStr, Response};
+        _ ->
+            io:format("Erreur : ~s~n", [Response]),
+            {undefined, Response}
     end;
 
 handle_command(["add", _KeyStr], _IP, undefined) ->
@@ -40,7 +45,8 @@ handle_command(["add", KeyStr], IP, Login) ->
     io:format("Saisir le secret : "),
     SecretInput = string:trim(io:get_line("")),
     Encrypted = safebox_crypto:encrypt(list_to_binary(SecretInput)),
-    Response = send_tcp(IP, ["store", KeyStr, binary_to_list(Encrypted)]),
+    Response = send_tcp(IP, ["store", Login, KeyStr, binary_to_list(Encrypted)]),
+    io:format("~s~n", [Response]),
     {Login, Response};
 
 handle_command(["get", _KeyStr], _IP, undefined) ->
@@ -48,7 +54,7 @@ handle_command(["get", _KeyStr], _IP, undefined) ->
     {undefined, "NOT_LOGGED_IN"};
 
 handle_command(["get", KeyStr], IP, Login) ->
-    Response = send_tcp(IP, ["get", KeyStr]),
+    Response = send_tcp(IP, ["get", Login, KeyStr]),
     case string:substr(Response, 1, 4) of
         "OK: " ->
             EncBase64 = string:trim(string:substr(Response, 5)),
@@ -67,7 +73,7 @@ handle_command(["del", _KeyStr], _IP, undefined) ->
     {undefined, "NOT_LOGGED_IN"};
 
 handle_command(["del", KeyStr], IP, Login) ->
-    Response = send_tcp(IP, ["del", KeyStr]),
+    Response = send_tcp(IP, ["del", Login, KeyStr]),
     io:format("~s~n", [Response]),
     {Login, Response};
 

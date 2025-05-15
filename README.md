@@ -1,15 +1,15 @@
-# SafeBox – Projet Erlang TCP avec Mnesia
+# SafeBox – Projet Erlang TCP avec Mnesia (multi-utilisateur)
 
-**SafeBox** est une application client/serveur écrite en Erlang, permettant à un utilisateur de stocker, récupérer et supprimer des secrets (textes) via une connexion TCP. Chaque secret est encodé en Base64 côté client, et **stocké de manière persistante** sur le serveur grâce à **Mnesia**.
+**SafeBox** est une application client/serveur écrite en Erlang, permettant à un utilisateur de stocker, récupérer et supprimer des secrets (textes) via une connexion TCP. Chaque secret est encodé en Base64 côté client, et **stocké de manière persistante** sur le serveur grâce à **Mnesia**, avec **gestion multi-utilisateur**.
 
 ---
 
 ## Objectifs pédagogiques
 
 - Implémenter un modèle client/serveur avec `gen_tcp`
+- Gérer des utilisateurs avec login/mot de passe
 - Stocker les données de manière persistante avec `Mnesia`
-- Gérer plusieurs connexions TCP avec `spawn`
-- Séparer les responsabilités client / serveur
+- Appliquer une architecture modulaire et sécurisée
 - Comprendre l'encodage Base64 côté client
 
 ---
@@ -18,8 +18,8 @@
 
 - **Erlang** (OTP 25+ recommandé)
 - **TCP/IP** via `gen_tcp`
-- **Mnesia** pour le stockage persistant côté serveur
-- **Encodage Base64** côté client (`safebox_crypto`)
+- **Mnesia** pour le stockage persistant
+- **Encodage Base64** pédagogique côté client
 - **Client CLI** interactif
 
 ---
@@ -29,10 +29,10 @@
 ```
 safebox/
 ├── src/
-│   ├── safebox_server.erl       # Serveur TCP + stockage Mnesia
-│   ├── safebox_cli.erl          # Client CLI TCP
+│   ├── safebox_server.erl       # Serveur TCP + Mnesia
+│   ├── safebox_cli.erl          # Client CLI TCP (multi-utilisateur)
 │   └── safebox_crypto.erl       # Encodage Base64
-├── ebin/                        # Fichiers .beam compilés
+├── ebin/                        # Fichiers compilés
 ├── Makefile                     # Compilation
 └── README.md                    # Ce fichier
 ```
@@ -49,22 +49,20 @@ make
 
 ## Lancement
 
-### Côté Serveur (machine distante)
+### Serveur
 
 ```bash
 erl -pa ebin -sname server -setcookie safebox
 ```
 
-Puis dans l’interpréteur :
+Puis :
 
 ```erlang
 c(safebox_server).
 safebox_server:start().
 ```
 
-Le serveur écoute sur `0.0.0.0:5000` et initialise automatiquement **Mnesia** avec une table persistante `secret`.
-
-### Côté Client (depuis une autre machine)
+### Client
 
 ```bash
 erl -pa ebin -sname client -setcookie safebox
@@ -82,45 +80,41 @@ safebox_cli:start("IP_DU_SERVEUR").
 ## Commandes disponibles (client CLI)
 
 ```
-> add wifi            # Saisir un secret, l’encoder, l’envoyer
-> get wifi            # Récupérer et décoder un secret
-> del wifi            # Supprimer un secret
-> quit                # Quitter le client
+> register <utilisateur>     # Créer un nouvel utilisateur
+> login <utilisateur>        # Se connecter avec mot de passe
+> add <clé>                  # Ajouter un secret (login requis)
+> get <clé>                  # Lire un secret
+> del <clé>                  # Supprimer un secret
+> quit                       # Quitter le client
 ```
+
+ℹ️ Le **login actif est automatiquement transmis au serveur** dans toutes les commandes `add`, `get`, `del`.
 
 ---
 
-## Encodage côté client
+## Sécurité & encodage
 
-- Les secrets sont encodés en Base64 avant envoi.
-- Le serveur **stocke uniquement la version encodée**, sans jamais voir le contenu en clair.
-- Le client décode à la récupération (`get`).
+- Le secret est **encodé en Base64** côté client.
+- Le serveur ne voit pas les données en clair.
+- Pour plus de sécurité, un chiffrement fort (AES) est recommandé.
 
 ---
 
 ## Stockage côté serveur
 
-- Le serveur utilise **Mnesia** pour persister les données.
-- La base est automatiquement initialisée si elle n’existe pas.
-- Les secrets survivent aux redémarrages du serveur.
+- Données **persistées** dans Mnesia avec tables `user` et `secret`.
+- Chaque secret est lié à un utilisateur.
+- Les données survivent aux redémarrages du serveur.
 
 ---
 
-## Sécurité & Limites
+## Limites et pistes d'amélioration
 
-- Le Base64 **n’est pas un chiffrement sécurisé**.
-- La communication TCP **n’est pas chiffrée** (pas de TLS).
-- Mnesia stocke les secrets encodés, mais non cryptés (prévoir chiffrement fort pour un usage réel).
-
----
-
-## Évolutions possibles
-
-- Chiffrement AES des secrets côté client
-- Authentification utilisateur simple
-- Support multi-utilisateur
-- Interface Web (Cowboy)
-- Sauvegarde/restauration Mnesia
+- Ajouter un vrai chiffrement (AES)
+- Liste des clés (`list`)
+- Interface Web avec Cowboy
+- Export/sauvegarde Mnesia
+- Session persistante avec gestion de tokens
 
 ---
 
