@@ -88,7 +88,7 @@ safebox_cli:start("IP_DU_SERVEUR").
 > quit                       # Quitter le client
 ```
 
-ℹ️ Le **login actif est automatiquement transmis au serveur** dans toutes les commandes `add`, `get`, `del`.
+Le **login actif est automatiquement transmis au serveur** dans toutes les commandes `add`, `get`, `del`.
 
 ---
 
@@ -111,8 +111,7 @@ safebox_cli:start("IP_DU_SERVEUR").
 ## Limites et pistes d'amélioration
 
 - Ajouter un vrai chiffrement (AES)
-- Liste des clés (`list`)
-- Interface Web avec Cowboy
+- Interface Web
 - Export/sauvegarde Mnesia
 
 ---
