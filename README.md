@@ -96,13 +96,12 @@ Le **login actif est automatiquement transmis au serveur** dans toutes les comma
 
 - Le secret est **encodé en Base64** côté client.
 - Le serveur ne voit pas les données en clair.
-- Pour plus de sécurité, un chiffrement fort (AES) est recommandé.
 
 ---
 
 ## Stockage côté serveur
 
-- Données **persistées** dans Mnesia avec tables `user` et `secret`.
+- Données **persistantes** dans Mnesia avec tables `user` et `secret`.
 - Chaque secret est lié à un utilisateur.
 - Les données survivent aux redémarrages du serveur.
 
@@ -112,7 +111,6 @@ Le **login actif est automatiquement transmis au serveur** dans toutes les comma
 
 - Ajouter un vrai chiffrement (AES)
 - Interface Web
-- Export/sauvegarde Mnesia
 
 ---
 
