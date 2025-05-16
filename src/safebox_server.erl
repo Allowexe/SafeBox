@@ -101,11 +101,21 @@ handle_command(["get", Login, Key], _) ->
     end;
 
 handle_command(["del", Login, Key], _) ->
+    UserBin = list_to_binary(Login),
+    KeyBin = list_to_binary(Key),
     Fun = fun() ->
-        mnesia:delete({secret, list_to_binary(Login), list_to_binary(Key)})
+        Match = #secret{user = UserBin, key = KeyBin, value = '_'},
+        case mnesia:match_object(Match) of
+            [RealRecord] ->
+                mnesia:delete_object(RealRecord),
+                ok;
+            [] ->
+                not_found
+        end
     end,
     case mnesia:transaction(Fun) of
-        {atomic, _} -> "OK: deleted";
+        {atomic, ok} -> "OK: deleted";
+        {atomic, not_found} -> "ERR: not_found";
         _ -> "ERR: delete_failed"
     end;
 
