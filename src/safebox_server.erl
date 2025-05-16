@@ -102,11 +102,7 @@ handle_command(["get", Login, Key], _) ->
 
 handle_command(["del", Login, Key], _) ->
     Fun = fun() ->
-        mnesia:delete_object(#secret{
-            user = list_to_binary(Login),
-            key = list_to_binary(Key),
-            value = '_'
-        })
+        mnesia:delete({secret, list_to_binary(Login), list_to_binary(Key)})
     end,
     case mnesia:transaction(Fun) of
         {atomic, _} -> "OK: deleted";
